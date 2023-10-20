@@ -1,0 +1,20 @@
+enclave {
+
+    struct Userdata {
+        unsigned char* pub_key;
+        int user_id;
+    };
+
+    trusted {
+        public void ecall_seal_data([in, size=pk_size] unsigned char* pub_key, int user_id, size_t pk_size);
+        public void ecall_unseal_data([in, size=sealed_size] uint8_t* sealed_data, size_t sealed_size);
+    };
+
+    untrusted {
+        void ocall_saveFile([in, size=buf_len] uint8_t* sealed_data, size_t buf_len);
+        void ocall_print_pub_key([in, size=pk_size] unsigned char* pub_key, int user_id, size_t pk_size);
+        void ocall_print_error([in, size=len]const char* msg, size_t len);
+        void ocall_print_struct([in] struct Userdata* user);
+        void ocall_print_uint8_t([in, size=len] uint8_t* buf, size_t len);
+    };
+};
