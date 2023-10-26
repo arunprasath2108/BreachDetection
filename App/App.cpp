@@ -1,51 +1,9 @@
 #include "App.h"
-#include "Enclave_u.h"
 #include "sgx_urts.h"
-#include "FileHandling.h"
+#include "UserPassword.h"
+#include "BreachedPasswords.h"
+#include "Ocall_file.h"
 
-
-void ocall_print_pub_key(unsigned char* pub_key, int uid, size_t pk_size) {
-
-    for(int i=0;i<pk_size;i++){
-        std::cout << pub_key[i];
-    }
-    std::cout << std::endl;
-    std::cout << "user id : " << uid << std::endl;
-}
-
-void ocall_print_error(const char* message, size_t len) {
-
-    for(int i=0;i<len;i++) {
-        std::cout << message[i];
-    }
-    std::cout << std::endl;
-}
-
-void ocall_print_struct(Userdata* user) {
-
-    std::cout << "id : " << user->user_id << std::endl;    //id success
-    if (user == NULL) {
-        ocall_print_error("Invalid Userdata pointer", sizeof("Invalid Userdata pointer"));
-        return;
-    }
-}
-
-void ocall_print_uint8_t(uint8_t* buf, size_t len) {
-
-    std::cout << "printing uint8_t buffer :\n";
-    for(int i=0;i<len;i++) {
-        std::cout << buf[i];
-    }
-    std::cout << std::endl;
-}
-
-void ocall_saveFile(uint8_t* sealed_data, size_t sealed_size) {
-    bool isFileSaved = saveFile(sealed_data, sealed_size);
-    if( !isFileSaved ) {
-        std::cout << "Failed in writing to the file." << std::endl;
-        return;
-    }
-}
 
 
 static sgx_status_t initialize_enclave(const char* enclave_path, sgx_enclave_id_t *eid)
@@ -107,11 +65,33 @@ bool unseal_data(sgx_enclave_id_t eid) {
     {   
         std::cout << "err\n";
         free(sealed_data);
-        sgx_destroy_enclave(eid);
+        // sgx_destroy_enclave(eid);
         return false;
     }
 
     return true;
+}
+
+int checkBreachedPasswords(sgx_enclave_id_t eid) {
+
+    sgx_status_t ret;
+
+    ret = ecall_get_breached_passwords(eid, breached_passwords, breach_password_count);
+    if(ret != SGX_SUCCESS) {
+        return 0;
+    }
+
+    ret = ecall_get_user_passwords(eid, user_passwords, num_passwords);
+    if(ret != SGX_SUCCESS) {
+        return 0;
+    }
+
+    ret = ecall_compare_passwords(eid);
+    if(ret != SGX_SUCCESS) {
+        std::cout << " Error.\n";
+    }
+
+    return 1;
 }
 
 int main() {
@@ -129,10 +109,19 @@ int main() {
         std::cout << "Sealing data success." << std::endl;
     }
     
-    if(unseal_data(eid)) {
-        std::cout << "Unsealing data success." << std::endl;
+    // if(unseal_data(eid)) {
+    //     std::cout << "Unsealing data success." << std::endl;
+    // }
+
+    if(!checkBreachedPasswords(eid)) {
+        std::cout << "failed in send Usr Pass\n";
     }
-    
+
+    for(auto it : result_map) {
+        std::cout << it.first << " ~ " << it.second << "\n";
+    }
+
+
 }
 
 

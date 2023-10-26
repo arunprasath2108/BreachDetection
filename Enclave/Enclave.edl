@@ -1,20 +1,29 @@
 enclave {
-
+    
     struct Userdata {
         unsigned char* pub_key;
         int user_id;
     };
 
+    from "sgx_tsgxssl.edl" import *;
+    from "sgx_pthread.edl" import *;
+    
     trusted {
+
         public void ecall_seal_data([in, size=pk_size] unsigned char* pub_key, int user_id, size_t pk_size);
         public void ecall_unseal_data([in, size=sealed_size] uint8_t* sealed_data, size_t sealed_size);
+
+        public void ecall_get_user_passwords([in, count=len] const char** arr, size_t len);
+        public void ecall_get_breached_passwords([in, count=len] const char** arr, size_t len);
+
+        public void ecall_compare_passwords();
     };
 
     untrusted {
+
         void ocall_saveFile([in, size=buf_len] uint8_t* sealed_data, size_t buf_len);
-        void ocall_print_pub_key([in, size=pk_size] unsigned char* pub_key, int user_id, size_t pk_size);
-        void ocall_print_error([in, size=len]const char* msg, size_t len);
-        void ocall_print_struct([in] struct Userdata* user);
-        void ocall_print_uint8_t([in, size=len] uint8_t* buf, size_t len);
+        void ocall_print_error([in, string] const char *str);
+        void ocall_send_result([in, size=len] const char* str, int isBreached, size_t len);
+
     };
 };
