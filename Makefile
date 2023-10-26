@@ -1,6 +1,8 @@
 #SGX SDK Settings
 
 SGX_SDK ?= /home/arun-17915/Desktop/linux-sgx/linux/installer/bin/sgxsdk
+# SGX_SDK ?= /opt/intel/sgxsdk
+SGX_SSL ?= /home/arun-17915/Desktop/ssl/intel-sgx-ssl/Linux/package
 SGX_MODE ?= HW
 SGX_ARCH ?= x64
 SGX_DEBUG ?= 1
@@ -68,7 +70,7 @@ else
 endif
 
 App_Compile_CXXFlags := -std=c++0x $(App_Compile_CFlags)
-App_Link_Flags := -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread
+App_Link_Flags := -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread -L$(SGX_SSL)/lib64 -lsgx_usgxssl
 
 Gen_Untrusted_Source_Seal := App/Enclave_u.c
 Gen_Untrusted_Object_Seal := App/Enclave_u.o
@@ -89,7 +91,8 @@ else
 endif
 Crypto_Library_Name := sgx_tcrypto
 
-Enclave_Include_Paths := -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc -I$(SGX_SDK)/include/libcxx
+Enclave_Include_Paths := -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc -I$(SGX_SDK)/include/libcxx -I$(SGX_SSL)/include/openssl -I$(SGX_SSL)/include -ltsgxsslio.h
+
 CC_BELOW_4_9 := $(shell expr "`$(CC) -dumpversion`" \< "4.9")
 ifeq ($(CC_BELOW_4_9), 1)
 	Enclave_Compile_CFlags := -fstack-protector
@@ -102,6 +105,10 @@ Enclave_Compile_CXXFlags := -nostdinc++ -std=c++11 $(Enclave_Compile_CFlags)
 # Enable the security flags
 Enclave_Security_Link_Flags := -Wl,-z,relro,-z,now,-z,noexecstack
 
+SGX_SSL_Link_Flags := -L$(SGX_SSL)/lib64 -Wl,--whole-archive -lsgx_tsgxssl -Wl,--no-whole-archive \
+						-lsgx_tsgxssl_crypto -Wl,--whole-archive -lsgx_pthread
+
+
 # To generate a proper enclave, it is recommended to follow below guideline to link the trusted libraries:
 #    1. Link sgx_trts with the `--whole-archive' and `--no-whole-archive' options,
 #       so that the whole content of trts is included in the enclave.
@@ -109,12 +116,12 @@ Enclave_Security_Link_Flags := -Wl,-z,relro,-z,now,-z,noexecstack
 #       Use `--start-group' and `--end-group' to link these libraries.
 # Do NOT move the libraries linked with `--start-group' and `--end-group' within `--whole-archive' and `--no-whole-archive' options. 
 # Otherwise, you may get some undesirable errors.
-Enclave_Link_Flags := $(Enclave_Security_Link_Flags) \
+Enclave_Link_Flags := $(Enclave_Security_Link_Flags) $(SGX_SSL_Link_Flags) \
     -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_LIBRARY_PATH) \
 	-Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
 	-Wl,--start-group -lsgx_tstdc -lsgx_tcxx -l$(Crypto_Library_Name) -l$(Service_Library_Name) -Wl,--end-group \
 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined -Wl,-pie,-eenclave_entry \
-	-Wl,--export-dynamic -Wl,--defsym,__ImageBase=0 -Wl,--gc-sections
+	-Wl,--export-dynamic -Wl,--defsym,__ImageBase=0 -Wl,--gc-sections \
 
 
 # Enclave_Seal
@@ -185,7 +192,7 @@ endif
 # App Objects 
 
 $(Gen_Untrusted_Source_Seal): $(SGX_EDGER8R) Enclave/Enclave.edl
-	@cd App && $(SGX_EDGER8R) --untrusted ../Enclave/Enclave.edl --search-path $(SGX_SDK)/include
+	@cd App && $(SGX_EDGER8R) --untrusted ../Enclave/Enclave.edl --search-path $(SGX_SDK)/include  --search-path $(SGX_SSL)/include
 	@echo "GEN  =>  $@"
 
 $(Gen_Untrusted_Object_Seal): $(Gen_Untrusted_Source_Seal)
@@ -206,7 +213,7 @@ $(App_Name): $(App_Objects)
 # Enclave Seal Objects 
 
 $(Gen_Trusted_Source_Seal): $(SGX_EDGER8R) Enclave/Enclave.edl
-	@cd Enclave && $(SGX_EDGER8R) --trusted Enclave.edl --search-path $(SGX_SDK)/include
+	@cd Enclave && $(SGX_EDGER8R) --trusted Enclave.edl --search-path $(SGX_SDK)/include --search-path $(SGX_SSL)/include
 	@echo "GEN  =>  $@"
 
 $(Gen_Trusted_Object_Seal): $(Gen_Trusted_Source_Seal)
@@ -239,4 +246,4 @@ endif
 
 clean:
 	@rm -f .config_* $(App_Name) $(App_Objects) $(Enclave_Seal_Name) $(Signed_Enclave_Seal_Name)
-	@rm -f $(Enclave_Objects_Files) App/Enclave_u.* Enclave/Enclave_t.*
+	@rm -f $(Enclave_Objects_Files) App/Enclave_u.* Enclave/Enclave_t.* App/sgx_tsgxssl_u.* Enclave/sgx_tsgxssl_t.*
